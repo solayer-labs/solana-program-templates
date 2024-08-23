@@ -1,0 +1,21 @@
+[toolchain]
+
+[features]
+seeds = true
+skip-lint = false
+
+[programs.localnet]
+lrt_template = "Be419vzFciNeDWrX61Wwo2pqHWeX1JQVRQrwgoK6Lur2"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "https://api.devnet.solana.com"
+wallet = "~/.config/solana/id.json"
+
+[workspace]
+members = ["programs/lrt-template"]
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
