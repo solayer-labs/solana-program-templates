@@ -13,6 +13,7 @@ import {
 import * as path from "path";
 import {
   AuthorityType,
+  createAssociatedTokenAccount,
   createAssociatedTokenAccountIdempotent,
   createSetAuthorityInstruction,
   getMint,

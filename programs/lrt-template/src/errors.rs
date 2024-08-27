@@ -14,6 +14,9 @@ pub enum LRTPoolError {
     #[msg("Insufficient sSOL funds for delegate")]
     InsufficientSSOLFundsForDelegate,
 
+    #[msg("Insufficient Staked SOL funds for delegate")]
+    InsufficientAvsTokenForUndelegate,
+
     #[msg("Missing necessary accounts")]
     MissingAccounts
 }

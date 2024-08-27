@@ -23,6 +23,7 @@ import {
   log,
   newTransactionWithComputeUnitPriceAndLimit,
 } from "./helpers";
+import { assert } from "chai";
 
 // LST mint admin keypair
 const KEYPAIR = Keypair.fromSecretKey(
@@ -55,9 +56,11 @@ const SOLAYER_RESTAKE_POOL_DEVNET = new PublicKey(
   "HukzvthPRkQYYon61o1ZKmwU4pxVL8ahMzTzsmWcEB5F"
 );
 
-const SOLAYER_RESTAKE_PROGRAM_ID_DEVNET = new PublicKey("3uZbsFKoxpX8NaRWgkMRebVCofCWoTcJ3whrt4Lvoqn9");
+const SOLAYER_RESTAKE_PROGRAM_ID_DEVNET = new PublicKey(
+  "3uZbsFKoxpX8NaRWgkMRebVCofCWoTcJ3whrt4Lvoqn9"
+);
 
-const DEPOSIT_AMOUNT = new anchor.BN(10 * LAMPORTS_PER_SOL);
+const DEPOSIT_AMOUNT = 10;
 
 async function main() {
   const connection = new Connection(clusterApiUrl("devnet"));
@@ -135,19 +138,23 @@ async function main() {
     restakingPoolLstVault.toBase58()
   );
 
+  const poolSSolBalanceBefore = await connection.getTokenAccountBalance(
+    poolSsolAta
+  );
+
   let tx = newTransactionWithComputeUnitPriceAndLimit();
 
   const lstAtaMintInst = createMintToInstruction(
     LST_MINT_PUB_KEY_DEVNET,
     lstAta,
     KEYPAIR.publicKey,
-    DEPOSIT_AMOUNT.toNumber()
+    new anchor.BN(DEPOSIT_AMOUNT * LAMPORTS_PER_SOL).toNumber()
   );
 
   tx.add(lstAtaMintInst);
 
   const depositInst = await program.methods
-    .deposit(DEPOSIT_AMOUNT)
+    .deposit(new anchor.BN(DEPOSIT_AMOUNT * LAMPORTS_PER_SOL))
     .accounts({
       signer: USER_KEYPAIR.publicKey,
       lstMint: LST_MINT_PUB_KEY_DEVNET,
@@ -170,16 +177,29 @@ async function main() {
         pubkey: pool,
         isSigner: false,
         isWritable: true,
-      }
+      },
     ])
     .instruction();
   tx.add(depositInst);
 
   await sendAndConfirmTransaction(connection, tx, [KEYPAIR, USER_KEYPAIR])
-    .then(log)
+    .then((signature: string) => {
+      console.log("Deposit Tx Success.");
+      log(signature);
+    })
     .catch((e) => {
       console.error(e);
     });
+
+  const poolSSolBalanceAfter = await connection.getTokenAccountBalance(
+    poolSsolAta
+  );
+
+  assert.equal(
+    poolSSolBalanceAfter.value.uiAmount - poolSSolBalanceBefore.value.uiAmount,
+    DEPOSIT_AMOUNT,
+    "deposit amount not match"
+  );
 }
 
 main().then(() => process.exit());

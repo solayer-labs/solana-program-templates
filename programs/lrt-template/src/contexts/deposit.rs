@@ -64,8 +64,13 @@ pub struct Deposit<'info> {
         associated_token::mint = lst_mint,
     )]
     restaking_pool_lst_vault: Box<InterfaceAccount<'info, TokenAccount>>,
-    #[account(has_one = lst_mint, has_one = rst_mint, constraint = pool.lrt_mint == ssol_mint.key(),
-    seeds = [b"lrt_pool", pool.lst_mint.key().as_ref(), pool.rst_mint.key().as_ref(), pool.lrt_mint.key().as_ref()], bump = pool.bump)]
+    #[account(
+        has_one = lst_mint,
+        has_one = rst_mint,
+        constraint = pool.lrt_mint == ssol_mint.key(),
+        seeds = [b"lrt_pool", pool.lst_mint.key().as_ref(), pool.rst_mint.key().as_ref(), pool.lrt_mint.key().as_ref()],
+        bump = pool.bump
+    )]
     pool: Box<Account<'info, LRTPool>>,
     #[account(
         address = Pubkey::from_str(SOLAYER_RESTAKE_POOL).unwrap()

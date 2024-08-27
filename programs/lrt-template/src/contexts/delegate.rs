@@ -7,7 +7,10 @@ use solana_program::{instruction::Instruction, program::invoke_signed};
 use std::str::FromStr;
 
 use crate::{
-    constants::SOLAYER_ENDO_AVS_PROGRAM_ID, errors::LRTPoolError, state::LRTPool, utils::sighash,
+    constants::{SOLAYER_ENDO_AVS_PROGRAM_ID, SOLAYER_SOL_ACCOUNT},
+    errors::LRTPoolError,
+    state::LRTPool,
+    utils::sighash,
 };
 
 #[derive(Accounts)]
@@ -20,30 +23,27 @@ pub struct Delegate<'info> {
         mut,
         mint::decimals = delegated_token_mint.decimals,
         mint::authority = endo_avs,
-        mint::freeze_authority = endo_avs,
-        mint::token_program = token_program
+        mint::freeze_authority = endo_avs
     )]
-    pub avs_token_mint: Box<InterfaceAccount<'info, Mint>>,
+    avs_token_mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
-        init_if_needed,
-        payer = signer,
+        mut,
         associated_token::mint = delegated_token_mint,
-        associated_token::authority = endo_avs,
-        associated_token::token_program = token_program
+        associated_token::authority = endo_avs
     )]
-    pub delegated_token_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    delegated_token_vault: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         mint::token_program = token_program,
+        address = Pubkey::from_str(SOLAYER_SOL_ACCOUNT).unwrap(),
     )]
-    pub delegated_token_mint: Box<InterfaceAccount<'info, Mint>>,
+    delegated_token_mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
-        init_if_needed,
-        payer = signer,
+        mut,
         associated_token::mint = delegated_token_mint,
         associated_token::authority = pool,
         associated_token::token_program = token_program
     )]
-    pub pool_delegated_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
+    pool_delegated_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         init_if_needed,
         payer = signer,
@@ -51,19 +51,24 @@ pub struct Delegate<'info> {
         associated_token::mint = avs_token_mint,
         associated_token::token_program = token_program
     )]
-    pub pool_avs_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
-    #[account(seeds = [b"lrt_pool", pool.rst_mint.key().as_ref()], bump = pool.bump,
-    constraint = pool.delegate_authority == signer.key())]
+    pool_avs_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(
+        seeds = [b"lrt_pool", pool.lst_mint.key().as_ref(), pool.rst_mint.key().as_ref(), pool.lrt_mint.key().as_ref()],
+        bump = pool.bump,
+        constraint = pool.delegate_authority == signer.key()
+    )]
     pool: Account<'info, LRTPool>,
-    pub token_program: Interface<'info, TokenInterface>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
-    pub system_program: Program<'info, System>,
+    #[account(address = Pubkey::from_str(SOLAYER_ENDO_AVS_PROGRAM_ID).unwrap())]
+    endo_avs_program: AccountInfo<'info>,
+    token_program: Interface<'info, TokenInterface>,
+    associated_token_program: Program<'info, AssociatedToken>,
+    system_program: Program<'info, System>,
 }
 
 impl<'info> Delegate<'info> {
     pub fn delegate(&mut self, amount: u64) -> Result<()> {
-        self.delegated_token_vault.reload()?;
-        if self.delegated_token_vault.amount < amount {
+        self.pool_delegated_token_account.reload()?;
+        if self.pool_delegated_token_account.amount < amount {
             return Err(LRTPoolError::InsufficientSSOLFundsForDelegate.into());
         }
 
@@ -94,14 +99,22 @@ impl<'info> Delegate<'info> {
         ];
 
         let delegate_inst = Instruction {
-            program_id: Pubkey::from_str(SOLAYER_ENDO_AVS_PROGRAM_ID).unwrap(),
+            program_id: self.endo_avs_program.key(),
             data: delegate_data,
             accounts,
         };
 
         let bump = [self.pool.bump];
+        let lst_mint = self.pool.lst_mint.key();
         let rst_mint = self.pool.rst_mint.key();
-        let signer_seeds: [&[&[u8]]; 1] = [&[b"lrt_pool", rst_mint.as_ref(), &bump][..]];
+        let lrt_mint = self.pool.lrt_mint.key();
+        let signer_seeds: [&[&[u8]]; 1] = [&[
+            b"lrt_pool",
+            lst_mint.as_ref(),
+            rst_mint.as_ref(),
+            lrt_mint.as_ref(),
+            &bump,
+        ][..]];
 
         invoke_signed(
             &delegate_inst,
@@ -123,9 +136,9 @@ impl<'info> Delegate<'info> {
     }
 
     pub fn undelegate(&mut self, amount: u64) -> Result<()> {
-        self.delegated_token_vault.reload()?;
-        if self.delegated_token_vault.amount < amount {
-            return Err(LRTPoolError::InsufficientSSOLFundsForDelegate.into());
+        self.pool_avs_token_account.reload()?;
+        if self.pool_avs_token_account.amount < amount {
+            return Err(LRTPoolError::InsufficientAvsTokenForUndelegate.into());
         }
 
         let mut undelegate_data = sighash("global", "undelegate").to_vec();
@@ -155,14 +168,22 @@ impl<'info> Delegate<'info> {
         ];
 
         let delegate_inst = Instruction {
-            program_id: Pubkey::from_str(SOLAYER_ENDO_AVS_PROGRAM_ID).unwrap(),
+            program_id: self.endo_avs_program.key(),
             data: undelegate_data,
             accounts,
         };
 
         let bump = [self.pool.bump];
+        let lst_mint = self.pool.lst_mint.key();
         let rst_mint = self.pool.rst_mint.key();
-        let signer_seeds: [&[&[u8]]; 1] = [&[b"lrt_pool", rst_mint.as_ref(), &bump][..]];
+        let lrt_mint = self.pool.lrt_mint.key();
+        let signer_seeds: [&[&[u8]]; 1] = [&[
+            b"lrt_pool",
+            lst_mint.as_ref(),
+            rst_mint.as_ref(),
+            lrt_mint.as_ref(),
+            &bump,
+        ][..]];
 
         invoke_signed(
             &delegate_inst,

@@ -26,13 +26,11 @@ pub struct Withdraw<'info> {
     #[account(
         mint::token_program = token_program,
     )]
-    lst_mint: InterfaceAccount<'info, Mint>,
+    lst_mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
-        init_if_needed,
-        payer = signer,
         associated_token::authority = signer,
         associated_token::mint = lst_mint,
-        associated_token::token_program = token_program,
+        associated_token::token_program = token_program
     )]
     lst_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
@@ -42,13 +40,13 @@ pub struct Withdraw<'info> {
         mint::freeze_authority = pool,
         mint::decimals = lst_mint.decimals
     )]
-    rst_mint: InterfaceAccount<'info, Mint>,
+    rst_mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         init_if_needed,
         payer = signer,
         associated_token::authority = signer,
         associated_token::mint = rst_mint,
-        associated_token::token_program = token_program,
+        associated_token::token_program = token_program
     )]
     rst_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
@@ -57,7 +55,7 @@ pub struct Withdraw<'info> {
         associated_token::mint = lst_mint,
         associated_token::token_program = token_program
     )]
-    vault: InterfaceAccount<'info, TokenAccount>,
+    vault: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -66,29 +64,34 @@ pub struct Withdraw<'info> {
         mint::freeze_authority = Pubkey::from_str(SOLAYER_RESTAKE_POOL).unwrap(),
         constraint = ssol_mint.key() == Pubkey::from_str(SOLAYER_SOL_ACCOUNT).unwrap(),
     )]
-    ssol_mint: InterfaceAccount<'info, Mint>,
+    ssol_mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
-        init_if_needed,
-        payer = signer,
         associated_token::authority = pool,
         associated_token::mint = ssol_mint,
         associated_token::token_program = token_program,
     )]
-    ssol_ata: InterfaceAccount<'info, TokenAccount>,
+    ssol_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         mut,
         associated_token::authority = pool,
         associated_token::mint = ssol_mint,
         associated_token::token_program = token_program
     )]
-    ssol_vault: InterfaceAccount<'info, TokenAccount>,
+    restaking_pool_lst_vault: InterfaceAccount<'info, TokenAccount>,
     #[account(
         has_one = lst_mint,
         has_one = rst_mint,
-        seeds = [b"lrt_pool", pool.rst_mint.key().as_ref()],
+        constraint = pool.lrt_mint == ssol_mint.key(),
+        seeds = [b"lrt_pool", pool.lst_mint.key().as_ref(), pool.rst_mint.key().as_ref(), pool.lrt_mint.key().as_ref()],
         bump = pool.bump
     )]
-    pool: Account<'info, LRTPool>,
+    pool: Box<Account<'info, LRTPool>>,
+    #[account(
+        address = Pubkey::from_str(SOLAYER_RESTAKE_POOL).unwrap()
+    )]
+    restaking_pool: AccountInfo<'info>,
+    #[account(address = Pubkey::from_str(SOLAYER_RESTAKE_PROGRAM_ID).unwrap())]
+    restaking_program: AccountInfo<'info>,
     associated_token_program: Program<'info, AssociatedToken>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
@@ -129,6 +132,8 @@ pub struct Withdraw<'info> {
         associated_token::token_program = token_program
     )]
     pub pool_avs_token_account: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    #[account(address = Pubkey::from_str(SOLAYER_ENDO_AVS_PROGRAM_ID).unwrap())]
+    endo_avs_program: Option<AccountInfo<'info>>,
 }
 
 impl<'info> Withdraw<'info> {
@@ -154,7 +159,9 @@ pub fn unstake(&mut self, amount: u64) -> Result<()> {
     let bump = [self.pool.bump];
     let signer_seeds: [&[&[u8]]; 1] = [&[
         b"lrt_pool",
+        self.lst_mint.to_account_info().key.as_ref(),
         self.rst_mint.to_account_info().key.as_ref(),
+        self.ssol_mint.to_account_info().key.as_ref(),
         &bump,
     ][..]];
 
@@ -174,8 +181,8 @@ pub fn unstake(&mut self, amount: u64) -> Result<()> {
 
 pub fn unrestake(&mut self, amount: u64) -> Result<()> {
     // unstake sSOL to get back staked sol
-    self.ssol_vault.reload()?;
-    if self.ssol_vault.amount < amount {
+    self.restaking_pool_lst_vault.reload()?;
+    if self.restaking_pool_lst_vault.amount < amount {
         return Err(LRTPoolError::InsufficientSSOLFundsForWithdraw.into());
     }
     let mut unrestake_data = sighash("global", "unrestake").to_vec();
@@ -193,9 +200,9 @@ pub fn unrestake(&mut self, amount: u64) -> Result<()> {
         // rst_mint
         AccountMeta::new(self.ssol_mint.key(), false),
         // vault
-        AccountMeta::new(self.ssol_vault.key(), false),
+        AccountMeta::new(self.restaking_pool_lst_vault.key(), false),
         // pool
-        AccountMeta::new_readonly(Pubkey::from_str(SOLAYER_RESTAKE_POOL).unwrap(), false),
+        AccountMeta::new_readonly(self.restaking_pool.key(), false),
         // associated_token_program
         AccountMeta::new_readonly(self.associated_token_program.key(), false),
         // token_program
@@ -205,7 +212,7 @@ pub fn unrestake(&mut self, amount: u64) -> Result<()> {
     ];
 
     let restake_inst = Instruction {
-        program_id: Pubkey::from_str(SOLAYER_RESTAKE_PROGRAM_ID).unwrap(),
+        program_id: self.restaking_program.key(),
         data: unrestake_data,
         accounts,
     };
@@ -213,7 +220,9 @@ pub fn unrestake(&mut self, amount: u64) -> Result<()> {
     let bump = [self.pool.bump];
     let signer_seeds: [&[&[u8]]; 1] = [&[
         b"lrt_pool",
+        self.lst_mint.to_account_info().key.as_ref(),
         self.rst_mint.to_account_info().key.as_ref(),
+        self.ssol_mint.to_account_info().key.as_ref(),
         &bump,
     ][..]];
 
@@ -225,8 +234,8 @@ pub fn unrestake(&mut self, amount: u64) -> Result<()> {
             self.vault.to_account_info(),
             self.ssol_ata.to_account_info(),
             self.ssol_mint.to_account_info(),
-            self.ssol_vault.to_account_info(),
-            self.pool.to_account_info(),
+            self.restaking_pool_lst_vault.to_account_info(),
+            self.restaking_pool.to_account_info(),
             self.associated_token_program.to_account_info(),
             self.token_program.to_account_info(),
             self.system_program.to_account_info(),
@@ -243,6 +252,7 @@ pub fn undelegate(&mut self, amount: u64) -> Result<()> {
         || self.delegated_token_mint.is_none()
         || self.pool_delegated_token_account.is_none()
         || self.pool_avs_token_account.is_none()
+        || self.endo_avs_program.is_none()
     {
         return Err(LRTPoolError::MissingAccounts.into());
     }
@@ -253,6 +263,7 @@ pub fn undelegate(&mut self, amount: u64) -> Result<()> {
     let delegated_token_mint = self.delegated_token_mint.clone().unwrap();
     let pool_delegated_token_account = self.pool_delegated_token_account.clone().unwrap();
     let pool_avs_token_account = self.pool_avs_token_account.clone().unwrap();
+    let endo_avs_program = self.endo_avs_program.clone().unwrap();
 
     delegated_token_vault.reload()?;
     if delegated_token_vault.amount < amount {
@@ -286,14 +297,19 @@ pub fn undelegate(&mut self, amount: u64) -> Result<()> {
     ];
 
     let delegate_inst = Instruction {
-        program_id: Pubkey::from_str(SOLAYER_ENDO_AVS_PROGRAM_ID).unwrap(),
+        program_id: endo_avs_program.key(),
         data: undelegate_data,
         accounts,
     };
 
     let bump = [self.pool.bump];
-    let rst_mint = self.pool.rst_mint.key();
-    let signer_seeds: [&[&[u8]]; 1] = [&[b"lrt_pool", rst_mint.as_ref(), &bump][..]];
+    let signer_seeds: [&[&[u8]]; 1] = [&[
+        b"lrt_pool",
+        self.lst_mint.to_account_info().key.as_ref(),
+        self.rst_mint.to_account_info().key.as_ref(),
+        self.ssol_mint.to_account_info().key.as_ref(),
+        &bump,
+    ][..]];
 
     invoke_signed(
         &delegate_inst,

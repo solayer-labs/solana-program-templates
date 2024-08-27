@@ -4,7 +4,10 @@
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
     "init-pool": "ts-node ./scripts/initialize.ts",
-    "deposit": "ts-node ./scripts/deposit.ts"
+    "deposit": "ts-node ./scripts/deposit.ts",
+    "transfer-authority": "ts-node ./scripts/transfer-delegate-authority.ts",
+    "delegate": "yarn deposit && ts-node ./scripts/delegate.ts",
+    "undelegate": "yarn delegate && ts-node  ./scripts/undelegate.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "0.29.0",

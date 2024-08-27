@@ -37,8 +37,8 @@ pub mod lrt_template {
     pub fn withdraw_delegated_stake(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
         ctx.accounts.burn_rst(amount)?;
         ctx.accounts.undelegate(amount)?;
-        ctx.accounts.unrestake(amount)?;
-        ctx.accounts.unstake(amount)?;
+        // ctx.accounts.unrestake(amount)?;
+        // ctx.accounts.unstake(amount)?;
         Ok(())
     }
 
