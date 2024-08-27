@@ -170,6 +170,8 @@ async function main() {
     console.error(error);
   }
 
+  setTimeout(() => {}, 3000);
+
   const poolSSolBalanceAfter = await connection.getTokenAccountBalance(
     poolDelegatedTokenAccount
   );

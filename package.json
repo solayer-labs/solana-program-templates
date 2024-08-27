@@ -7,7 +7,9 @@
     "deposit": "ts-node ./scripts/deposit.ts",
     "transfer-authority": "ts-node ./scripts/transfer-delegate-authority.ts",
     "delegate": "yarn deposit && ts-node ./scripts/delegate.ts",
-    "undelegate": "yarn delegate && ts-node  ./scripts/undelegate.ts"
+    "undelegate": "yarn delegate && ts-node  ./scripts/undelegate.ts",
+    "withdraw": "yarn deposit && ts-node ./scripts/withdraw.ts",
+    "withdraw-stake": "yarn deposit && ts-node ./scripts/withdraw-stake.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "0.29.0",

@@ -12,13 +12,11 @@ import {
 } from "@solana/web3.js";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
-  createMintToInstruction,
   getAssociatedTokenAddressSync,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import {
   airdropSol,
-  createTokenAccount,
   loadKeypairFromFile,
   log,
   newTransactionWithComputeUnitPriceAndLimit,
@@ -52,15 +50,19 @@ const SOLAYER_SOL_MINT_PUB_KEY_DEVNET = new PublicKey(
   "BQoheepVg6gprtszJFiL59pFVHPa2bu3GBZ6Un7sGGsf"
 );
 
-const SOLAYER_RESTAKE_POOL_DEVNET = new PublicKey(
-  "HukzvthPRkQYYon61o1ZKmwU4pxVL8ahMzTzsmWcEB5F"
+const ENDO_AVS_DEVNET = new PublicKey(
+  "GQouxK6v51z191VRdqAuudhVma7AWiqkGQ5yBWWPysqa"
 );
 
-const SOLAYER_RESTAKE_PROGRAM_ID_DEVNET = new PublicKey(
-  "3uZbsFKoxpX8NaRWgkMRebVCofCWoTcJ3whrt4Lvoqn9"
+const ENDO_AVS_TOKEN_MINT_DEVNET = new PublicKey(
+  "5RA2wjzePPnk8z9Zy3whTDk4jTbMXgXqWxvCoeh8Fgck"
 );
 
-const DEPOSIT_AMOUNT = 10;
+const ENDO_AVS_PROGRAM_ID_DEVNET = new PublicKey(
+  "DM2ReCHeTsV4fAvHsBehZBTps3DVLiK2UW2dHAYrDZrM"
+);
+
+const WITHDRAW_AMOUNT = 10;
 
 async function main() {
   const connection = new Connection(clusterApiUrl("devnet"));
@@ -90,19 +92,6 @@ async function main() {
     program.programId
   );
 
-  const poolLstVault = getAssociatedTokenAddressSync(
-    LST_MINT_PUB_KEY_DEVNET,
-    pool,
-    true
-  );
-
-  const lstAta = await createTokenAccount(
-    connection,
-    USER_KEYPAIR,
-    LST_MINT_PUB_KEY_DEVNET,
-    USER_KEYPAIR.publicKey
-  );
-
   const rstAta = getAssociatedTokenAddressSync(
     RST_MINT_KEYPAIR.publicKey,
     USER_KEYPAIR.publicKey,
@@ -115,76 +104,77 @@ async function main() {
     true
   );
 
-  const restakingPoolLstVault = getAssociatedTokenAddressSync(
-    LST_MINT_PUB_KEY_DEVNET,
-    SOLAYER_RESTAKE_POOL_DEVNET,
+  const signerSsolAta = getAssociatedTokenAddressSync(
+    SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
+    USER_KEYPAIR.publicKey,
     true
   );
 
-  console.log(
-    "poolLstVault(init_if_needed during initialization): ",
-    poolLstVault.toBase58()
-  );
-  console.log("pool and bump: ", pool.toBase58(), bump);
-  console.log("rst_mint: ", RST_MINT_KEYPAIR.publicKey.toBase58());
-  console.log("lstAta: ", lstAta.toBase58());
-  console.log("rstAta(init_if_needed): ", rstAta.toBase58());
-  console.log(
-    "poolSsolAta(init_if_needed during initialization): ",
-    poolSsolAta.toBase58()
-  );
-  console.log(
-    "restakingPoolLstVault(inited by restaking program): ",
-    restakingPoolLstVault.toBase58()
+  const delegatedTokenVault = getAssociatedTokenAddressSync(
+    SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
+    ENDO_AVS_DEVNET,
+    true
   );
 
-  const poolSSolBalanceBefore = await connection.getTokenAccountBalance(
-    poolSsolAta
+  const poolAvsTokenAccount = getAssociatedTokenAddressSync(
+    ENDO_AVS_TOKEN_MINT_DEVNET,
+    pool,
+    true
+  );
+
+  console.log("rst_mint: ", RST_MINT_KEYPAIR.publicKey.toBase58());
+  console.log("rstAta: ", rstAta.toBase58());
+  console.log("SsolMint: ", SOLAYER_SOL_MINT_PUB_KEY_DEVNET.toBase58());
+  console.log("SsolAta: ", poolSsolAta.toBase58());
+  console.log("SignerSsolAta: ", signerSsolAta.toBase58());
+  console.log("pool and bump: ", pool.toBase58(), bump);
+  console.log("EndoAvs: ", ENDO_AVS_DEVNET.toBase58());
+  console.log("AvsTokenMint:", ENDO_AVS_TOKEN_MINT_DEVNET.toBase58());
+  console.log("DelegatedTokenVault: ", delegatedTokenVault.toBase58());
+  console.log("PoolAvsTokenAccount: ", poolAvsTokenAccount.toBase58());
+
+  const userRstBalanceBefore = await connection.getTokenAccountBalance(rstAta);
+  const poolAvsTokenBalanceBefore = await connection.getTokenAccountBalance(
+    poolAvsTokenAccount
+  );
+  const userSsolBalanceBefore = await connection.getTokenAccountBalance(
+    signerSsolAta
   );
 
   let tx = newTransactionWithComputeUnitPriceAndLimit();
 
-  const lstAtaMintInst = createMintToInstruction(
-    LST_MINT_PUB_KEY_DEVNET,
-    lstAta,
-    KEYPAIR.publicKey,
-    new anchor.BN(DEPOSIT_AMOUNT * LAMPORTS_PER_SOL).toNumber()
-  );
-
-  tx.add(lstAtaMintInst);
-
-  const depositInst = await program.methods
-    .deposit(new anchor.BN(DEPOSIT_AMOUNT * LAMPORTS_PER_SOL))
+  const withdrawInst = await program.methods
+    .withdrawDelegatedStake(new anchor.BN(WITHDRAW_AMOUNT * LAMPORTS_PER_SOL))
     .accounts({
       signer: USER_KEYPAIR.publicKey,
-      lstMint: LST_MINT_PUB_KEY_DEVNET,
-      lstAta,
       rstMint: RST_MINT_KEYPAIR.publicKey,
       rstAta,
-      vault: poolLstVault,
       ssolMint: SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
       ssolAta: poolSsolAta,
-      restakingPoolLstVault,
+      signerSsolAta,
       pool,
-      restakingPool: SOLAYER_RESTAKE_POOL_DEVNET,
-      restakingProgram: SOLAYER_RESTAKE_PROGRAM_ID_DEVNET,
+      endoAvs: ENDO_AVS_DEVNET,
+      avsTokenMint: ENDO_AVS_TOKEN_MINT_DEVNET,
+      delegatedTokenVault,
+      poolAvsTokenAccount,
+      endoAvsProgram: ENDO_AVS_PROGRAM_ID_DEVNET,
       associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       tokenProgram: TOKEN_PROGRAM_ID,
       systemProgram: SystemProgram.programId,
     })
     .remainingAccounts([
       {
-        pubkey: pool,
+        pubkey: ENDO_AVS_DEVNET,
         isSigner: false,
         isWritable: true,
       },
     ])
     .instruction();
-  tx.add(depositInst);
+  tx.add(withdrawInst);
 
   await sendAndConfirmTransaction(connection, tx, [KEYPAIR, USER_KEYPAIR])
     .then((signature: string) => {
-      console.log("Deposit Tx Success.");
+      console.log("Withdraw Stake Tx Success.");
       log(signature);
     })
     .catch((e) => {
@@ -193,14 +183,31 @@ async function main() {
 
   setTimeout(() => {}, 3000);
 
-  const poolSSolBalanceAfter = await connection.getTokenAccountBalance(
-    poolSsolAta
+  const userRstBalanceAfter = await connection.getTokenAccountBalance(rstAta);
+  const poolAvsTokenBalanceAfter = await connection.getTokenAccountBalance(
+    poolAvsTokenAccount
+  );
+  const userSsolBalanceAfter = await connection.getTokenAccountBalance(
+    signerSsolAta
   );
 
   assert.equal(
-    poolSSolBalanceAfter.value.uiAmount - poolSSolBalanceBefore.value.uiAmount,
-    DEPOSIT_AMOUNT,
-    "deposit amount not match"
+    userRstBalanceBefore.value.uiAmount - userRstBalanceAfter.value.uiAmount,
+    WITHDRAW_AMOUNT,
+    "withdraw stake amount not match"
+  );
+
+  assert.equal(
+    poolAvsTokenBalanceBefore.value.uiAmount -
+      poolAvsTokenBalanceAfter.value.uiAmount,
+    WITHDRAW_AMOUNT,
+    "pool avs token account balance should decrease by WITHDRAW_AMOUNT"
+  );
+
+  assert.equal(
+    userSsolBalanceAfter.value.uiAmount - userSsolBalanceBefore.value.uiAmount,
+    WITHDRAW_AMOUNT,
+    "user ssol balance should increase by WITHDRAW_AMOUNT"
   );
 }
 

@@ -95,6 +95,8 @@ async function main() {
 
   await sendAndConfirmTransaction(connection, tx1, [DELEGATE_AUTHORITY]);
 
+  setTimeout(() => {}, 3000);
+
   const poolAccountInfoAfter = await program.account.lrtPool.fetch(pool);
   assert.equal(
     NEW_DELEGATE_AUTHORITY.publicKey.toBase58(),
@@ -118,6 +120,8 @@ async function main() {
     console.log("Transfer Delegate Authority Tx Success.");
     log(signature);
   });
+
+  setTimeout(() => {}, 3000);
 
   const poolAccountInfoRevert = await program.account.lrtPool.fetch(pool);
   assert.equal(

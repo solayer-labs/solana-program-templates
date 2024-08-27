@@ -173,14 +173,17 @@ async function main() {
   tx.add(delegateInst);
 
   try {
-    await sendAndConfirmTransaction(connection, tx, [DELEGATE_AUTHORITY])
-    .then((signature: string) => {
-      console.log("Delegate Tx Success.");
-      log(signature);
-    })
+    await sendAndConfirmTransaction(connection, tx, [DELEGATE_AUTHORITY]).then(
+      (signature: string) => {
+        console.log("Delegate Tx Success.");
+        log(signature);
+      }
+    );
   } catch (error) {
     console.error(error);
   }
+
+  setTimeout(() => {}, 3000);
 
   const poolSSolBalanceAfter = await connection.getTokenAccountBalance(
     poolDelegatedTokenAccount

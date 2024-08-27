@@ -12,7 +12,6 @@ import {
 } from "@solana/web3.js";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
-  createMintToInstruction,
   getAssociatedTokenAddressSync,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
@@ -60,7 +59,7 @@ const SOLAYER_RESTAKE_PROGRAM_ID_DEVNET = new PublicKey(
   "3uZbsFKoxpX8NaRWgkMRebVCofCWoTcJ3whrt4Lvoqn9"
 );
 
-const DEPOSIT_AMOUNT = 10;
+const WITHDRAW_AMOUNT = 1;
 
 async function main() {
   const connection = new Connection(clusterApiUrl("devnet"));
@@ -144,17 +143,8 @@ async function main() {
 
   let tx = newTransactionWithComputeUnitPriceAndLimit();
 
-  const lstAtaMintInst = createMintToInstruction(
-    LST_MINT_PUB_KEY_DEVNET,
-    lstAta,
-    KEYPAIR.publicKey,
-    new anchor.BN(DEPOSIT_AMOUNT * LAMPORTS_PER_SOL).toNumber()
-  );
-
-  tx.add(lstAtaMintInst);
-
-  const depositInst = await program.methods
-    .deposit(new anchor.BN(DEPOSIT_AMOUNT * LAMPORTS_PER_SOL))
+  const withdrawInst = await program.methods
+    .withdraw(new anchor.BN(WITHDRAW_AMOUNT * LAMPORTS_PER_SOL))
     .accounts({
       signer: USER_KEYPAIR.publicKey,
       lstMint: LST_MINT_PUB_KEY_DEVNET,
@@ -174,17 +164,17 @@ async function main() {
     })
     .remainingAccounts([
       {
-        pubkey: pool,
+        pubkey: LST_MINT_PUB_KEY_DEVNET,
         isSigner: false,
         isWritable: true,
       },
     ])
     .instruction();
-  tx.add(depositInst);
+  tx.add(withdrawInst);
 
   await sendAndConfirmTransaction(connection, tx, [KEYPAIR, USER_KEYPAIR])
     .then((signature: string) => {
-      console.log("Deposit Tx Success.");
+      console.log("Withdraw Tx Success.");
       log(signature);
     })
     .catch((e) => {
@@ -196,11 +186,10 @@ async function main() {
   const poolSSolBalanceAfter = await connection.getTokenAccountBalance(
     poolSsolAta
   );
-
   assert.equal(
-    poolSSolBalanceAfter.value.uiAmount - poolSSolBalanceBefore.value.uiAmount,
-    DEPOSIT_AMOUNT,
-    "deposit amount not match"
+    poolSSolBalanceBefore.value.uiAmount - poolSSolBalanceAfter.value.uiAmount,
+    WITHDRAW_AMOUNT,
+    "withdraw amount not match"
   );
 }
 

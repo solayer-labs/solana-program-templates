@@ -34,11 +34,11 @@ pub mod lrt_template {
         Ok(())
     }
 
-    pub fn withdraw_delegated_stake(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
+    // user can always withdraw stake to get sSol back even if there is no sSol liquidity in the pool
+    pub fn withdraw_delegated_stake(ctx: Context<WithdrawStake>, amount: u64) -> Result<()> {
         ctx.accounts.burn_rst(amount)?;
         ctx.accounts.undelegate(amount)?;
-        // ctx.accounts.unrestake(amount)?;
-        // ctx.accounts.unstake(amount)?;
+        ctx.accounts.transfer_ssol(amount)?;
         Ok(())
     }
 
