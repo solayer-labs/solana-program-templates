@@ -15,6 +15,7 @@ import {
   newTransactionWithComputeUnitPriceAndLimit,
 } from "./helpers";
 import { assert } from "chai";
+import { LRT_TEMPLATE_PROGRAM_ID_DEVNET } from "./constants";
 
 // signer keypair
 const KEYPAIR = Keypair.fromSecretKey(
@@ -36,19 +37,7 @@ const NEW_DELEGATE_AUTHORITY = loadKeypairFromFile(
 );
 
 // you can generate a new one for your use
-const RST_MINT_KEYPAIR = loadKeypairFromFile("./keys/rst_mint.json");
-
-const SOLAYER_SOL_MINT_PUB_KEY_DEVNET = new PublicKey(
-  "BQoheepVg6gprtszJFiL59pFVHPa2bu3GBZ6Un7sGGsf"
-);
-
-const LRT_TEMPLATE_PROGRAM_ID_DEVNET = new PublicKey(
-  "Be419vzFciNeDWrX61Wwo2pqHWeX1JQVRQrwgoK6Lur2"
-);
-
-const LST_MINT_PUB_KEY_DEVNET = new PublicKey(
-  "DaERMQKb2z7FyekFBnSYgLG9YF98AyDNVQS6VCFw8mfE"
-);
+const OUTPUT_TOKEN_MINT_KEYPAIR = loadKeypairFromFile("./keys/output_token_mint.json");
 
 async function main() {
   const connection = new Connection(clusterApiUrl("devnet"));
@@ -68,9 +57,7 @@ async function main() {
   const [pool, _] = PublicKey.findProgramAddressSync(
     [
       Buffer.from("lrt_pool"),
-      LST_MINT_PUB_KEY_DEVNET.toBuffer(),
-      RST_MINT_KEYPAIR.publicKey.toBuffer(),
-      SOLAYER_SOL_MINT_PUB_KEY_DEVNET.toBuffer(),
+      OUTPUT_TOKEN_MINT_KEYPAIR.publicKey.toBuffer(),
     ],
     program.programId
   );
@@ -95,7 +82,7 @@ async function main() {
 
   await sendAndConfirmTransaction(connection, tx1, [DELEGATE_AUTHORITY]);
 
-  setTimeout(() => {}, 3000);
+  await new Promise((f) => setTimeout(f, 3000));
 
   const poolAccountInfoAfter = await program.account.lrtPool.fetch(pool);
   assert.equal(
@@ -121,7 +108,7 @@ async function main() {
     log(signature);
   });
 
-  setTimeout(() => {}, 3000);
+  await new Promise((f) => setTimeout(f, 3000));
 
   const poolAccountInfoRevert = await program.account.lrtPool.fetch(pool);
   assert.equal(

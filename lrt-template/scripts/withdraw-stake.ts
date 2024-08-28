@@ -22,6 +22,13 @@ import {
   newTransactionWithComputeUnitPriceAndLimit,
 } from "./helpers";
 import { assert } from "chai";
+import {
+  ENDO_AVS_DEVNET,
+  ENDO_AVS_PROGRAM_ID_DEVNET,
+  ENDO_AVS_TOKEN_MINT_DEVNET,
+  LRT_TEMPLATE_PROGRAM_ID_DEVNET,
+  SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
+} from "./constants";
 
 // LST mint admin keypair
 const KEYPAIR = Keypair.fromSecretKey(
@@ -36,33 +43,11 @@ const KEYPAIR = Keypair.fromSecretKey(
 const USER_KEYPAIR = loadKeypairFromFile("./keys/user.json");
 
 // use the same one as initialize
-const RST_MINT_KEYPAIR = loadKeypairFromFile("./keys/rst_mint.json");
-
-const LRT_TEMPLATE_PROGRAM_ID_DEVNET = new PublicKey(
-  "Be419vzFciNeDWrX61Wwo2pqHWeX1JQVRQrwgoK6Lur2"
+const OUTPUT_TOKEN_MINT_KEYPAIR = loadKeypairFromFile(
+  "./keys/output_token_mint.json"
 );
 
-const LST_MINT_PUB_KEY_DEVNET = new PublicKey(
-  "DaERMQKb2z7FyekFBnSYgLG9YF98AyDNVQS6VCFw8mfE"
-);
-
-const SOLAYER_SOL_MINT_PUB_KEY_DEVNET = new PublicKey(
-  "BQoheepVg6gprtszJFiL59pFVHPa2bu3GBZ6Un7sGGsf"
-);
-
-const ENDO_AVS_DEVNET = new PublicKey(
-  "GQouxK6v51z191VRdqAuudhVma7AWiqkGQ5yBWWPysqa"
-);
-
-const ENDO_AVS_TOKEN_MINT_DEVNET = new PublicKey(
-  "5RA2wjzePPnk8z9Zy3whTDk4jTbMXgXqWxvCoeh8Fgck"
-);
-
-const ENDO_AVS_PROGRAM_ID_DEVNET = new PublicKey(
-  "DM2ReCHeTsV4fAvHsBehZBTps3DVLiK2UW2dHAYrDZrM"
-);
-
-const WITHDRAW_AMOUNT = 10;
+const WITHDRAW_AMOUNT = 1;
 
 async function main() {
   const connection = new Connection(clusterApiUrl("devnet"));
@@ -83,62 +68,69 @@ async function main() {
   );
 
   const [pool, bump] = PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("lrt_pool"),
-      LST_MINT_PUB_KEY_DEVNET.toBuffer(),
-      RST_MINT_KEYPAIR.publicKey.toBuffer(),
-      SOLAYER_SOL_MINT_PUB_KEY_DEVNET.toBuffer(),
-    ],
+    [Buffer.from("lrt_pool"), OUTPUT_TOKEN_MINT_KEYPAIR.publicKey.toBuffer()],
     program.programId
   );
 
-  const rstAta = getAssociatedTokenAddressSync(
-    RST_MINT_KEYPAIR.publicKey,
-    USER_KEYPAIR.publicKey,
-    true
-  );
-
-  const poolSsolAta = getAssociatedTokenAddressSync(
-    SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
-    pool,
-    true
-  );
-
-  const signerSsolAta = getAssociatedTokenAddressSync(
-    SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
-    USER_KEYPAIR.publicKey,
-    true
-  );
-
-  const delegatedTokenVault = getAssociatedTokenAddressSync(
+  const avsInputTokenVault = getAssociatedTokenAddressSync(
     SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
     ENDO_AVS_DEVNET,
     true
   );
 
-  const poolAvsTokenAccount = getAssociatedTokenAddressSync(
+  const poolAvsTokenVault = getAssociatedTokenAddressSync(
     ENDO_AVS_TOKEN_MINT_DEVNET,
     pool,
     true
   );
 
-  console.log("rst_mint: ", RST_MINT_KEYPAIR.publicKey.toBase58());
-  console.log("rstAta: ", rstAta.toBase58());
-  console.log("SsolMint: ", SOLAYER_SOL_MINT_PUB_KEY_DEVNET.toBase58());
-  console.log("SsolAta: ", poolSsolAta.toBase58());
-  console.log("SignerSsolAta: ", signerSsolAta.toBase58());
-  console.log("pool and bump: ", pool.toBase58(), bump);
-  console.log("EndoAvs: ", ENDO_AVS_DEVNET.toBase58());
-  console.log("AvsTokenMint:", ENDO_AVS_TOKEN_MINT_DEVNET.toBase58());
-  console.log("DelegatedTokenVault: ", delegatedTokenVault.toBase58());
-  console.log("PoolAvsTokenAccount: ", poolAvsTokenAccount.toBase58());
+  const signerInputTokenVault = getAssociatedTokenAddressSync(
+    SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
+    USER_KEYPAIR.publicKey,
+    true
+  );
 
-  const userRstBalanceBefore = await connection.getTokenAccountBalance(rstAta);
+  const poolInputTokenVault = getAssociatedTokenAddressSync(
+    SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
+    pool,
+    true
+  );
+
+  const signerOutputTokenVault = getAssociatedTokenAddressSync(
+    OUTPUT_TOKEN_MINT_KEYPAIR.publicKey,
+    USER_KEYPAIR.publicKey,
+    true
+  );
+
+  console.log(
+    "output_token_mint: ",
+    OUTPUT_TOKEN_MINT_KEYPAIR.publicKey.toBase58()
+  );
+  console.log("input_token_mint: ", SOLAYER_SOL_MINT_PUB_KEY_DEVNET.toBase58());
+  console.log("signer_input_token_vault: ", signerInputTokenVault.toBase58());
+  console.log("pool_input_token_vault: ", poolInputTokenVault.toBase58());
+  console.log(
+    "output_token_mint: ",
+    OUTPUT_TOKEN_MINT_KEYPAIR.publicKey.toBase58()
+  );
+  console.log(
+    "signer_output_token_vault (init_if_needed): ",
+    signerOutputTokenVault.toBase58()
+  );
+  console.log("pool and bump: ", pool.toBase58(), bump);
+  console.log("avs: ", ENDO_AVS_DEVNET.toBase58());
+  console.log("AvsTokenMint:", ENDO_AVS_TOKEN_MINT_DEVNET.toBase58());
+  console.log("avsInputTokenVault: ", avsInputTokenVault.toBase58());
+  console.log("poolAvsTokenVault: ", poolAvsTokenVault.toBase58());
+
+  const userOutputTokenBalanceBefore = await connection.getTokenAccountBalance(
+    signerOutputTokenVault
+  );
   const poolAvsTokenBalanceBefore = await connection.getTokenAccountBalance(
-    poolAvsTokenAccount
+    poolAvsTokenVault
   );
   const userSsolBalanceBefore = await connection.getTokenAccountBalance(
-    signerSsolAta
+    signerInputTokenVault
   );
 
   let tx = newTransactionWithComputeUnitPriceAndLimit();
@@ -147,17 +139,17 @@ async function main() {
     .withdrawDelegatedStake(new anchor.BN(WITHDRAW_AMOUNT * LAMPORTS_PER_SOL))
     .accounts({
       signer: USER_KEYPAIR.publicKey,
-      rstMint: RST_MINT_KEYPAIR.publicKey,
-      rstAta,
-      ssolMint: SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
-      ssolAta: poolSsolAta,
-      signerSsolAta,
+      inputTokenMint: SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
+      signerInputTokenVault,
+      poolInputTokenVault,
+      outputTokenMint: OUTPUT_TOKEN_MINT_KEYPAIR.publicKey,
+      signerOutputTokenVault,
       pool,
-      endoAvs: ENDO_AVS_DEVNET,
+      avs: ENDO_AVS_DEVNET,
       avsTokenMint: ENDO_AVS_TOKEN_MINT_DEVNET,
-      delegatedTokenVault,
-      poolAvsTokenAccount,
-      endoAvsProgram: ENDO_AVS_PROGRAM_ID_DEVNET,
+      avsInputTokenVault,
+      poolAvsTokenVault,
+      avsProgram: ENDO_AVS_PROGRAM_ID_DEVNET,
       associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       tokenProgram: TOKEN_PROGRAM_ID,
       systemProgram: SystemProgram.programId,
@@ -181,18 +173,21 @@ async function main() {
       console.error(e);
     });
 
-  setTimeout(() => {}, 3000);
+  await new Promise((f) => setTimeout(f, 3000));
 
-  const userRstBalanceAfter = await connection.getTokenAccountBalance(rstAta);
+  const userOutputTokenBalanceAfter = await connection.getTokenAccountBalance(
+    signerOutputTokenVault
+  );
   const poolAvsTokenBalanceAfter = await connection.getTokenAccountBalance(
-    poolAvsTokenAccount
+    poolAvsTokenVault
   );
   const userSsolBalanceAfter = await connection.getTokenAccountBalance(
-    signerSsolAta
+    signerInputTokenVault
   );
 
   assert.equal(
-    userRstBalanceBefore.value.uiAmount - userRstBalanceAfter.value.uiAmount,
+    userOutputTokenBalanceBefore.value.uiAmount -
+      userOutputTokenBalanceAfter.value.uiAmount,
     WITHDRAW_AMOUNT,
     "withdraw stake amount not match"
   );

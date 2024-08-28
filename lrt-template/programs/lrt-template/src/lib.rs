@@ -1,7 +1,6 @@
 use anchor_lang::prelude::*;
 use contexts::*;
 
-mod constants;
 mod contexts;
 mod errors;
 mod state;
@@ -18,27 +17,29 @@ pub mod lrt_template {
     }
 
     pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
-        // transfer solayer LP token into the pool
+        // transfer input token into the pool
         ctx.accounts.stake(amount)?;
-        // restake solayer LP token to get sSOL
-        ctx.accounts.restake(amount)?;
         // mint RST token
         ctx.accounts.mint_rst(amount)?;
         Ok(())
     }
 
     pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
-        ctx.accounts.burn_rst(amount)?;
-        ctx.accounts.unrestake(amount)?;
+        // burn output token from user first
+        ctx.accounts.burn_output_token(amount)?;
+        // transfer input token back to user's vault
         ctx.accounts.unstake(amount)?;
         Ok(())
     }
 
     // user can always withdraw stake to get sSol back even if there is no sSol liquidity in the pool
     pub fn withdraw_delegated_stake(ctx: Context<WithdrawStake>, amount: u64) -> Result<()> {
-        ctx.accounts.burn_rst(amount)?;
+        // burn output token from user first
+        ctx.accounts.burn_output_token(amount)?;
+        // undelegate avs token
         ctx.accounts.undelegate(amount)?;
-        ctx.accounts.transfer_ssol(amount)?;
+        // transfer input token back to user's vault
+        ctx.accounts.unstake(amount)?;
         Ok(())
     }
 

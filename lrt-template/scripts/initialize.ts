@@ -22,6 +22,10 @@ import {
   mintSetAuthorityInstruction,
   newTransactionWithComputeUnitPriceAndLimit,
 } from "./helpers";
+import {
+  LRT_TEMPLATE_PROGRAM_ID_DEVNET,
+  SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
+} from "./constants";
 
 // signer keypair
 const KEYPAIR = Keypair.fromSecretKey(
@@ -39,22 +43,8 @@ const DELEGATE_AUTHORITY = loadKeypairFromFile(
 );
 
 // you can generate a new one for your use
-const RST_MINT_KEYPAIR = loadKeypairFromFile("./keys/rst_mint.json");
-
-const SOLAYER_RESTAKE_PROGRAM_ID_DEVNET = new PublicKey(
-  "3uZbsFKoxpX8NaRWgkMRebVCofCWoTcJ3whrt4Lvoqn9"
-);
-
-const SOLAYER_SOL_MINT_PUB_KEY_DEVNET = new PublicKey(
-  "BQoheepVg6gprtszJFiL59pFVHPa2bu3GBZ6Un7sGGsf"
-);
-
-const LRT_TEMPLATE_PROGRAM_ID_DEVNET = new PublicKey(
-  "Be419vzFciNeDWrX61Wwo2pqHWeX1JQVRQrwgoK6Lur2"
-);
-
-const LST_MINT_PUB_KEY_DEVNET = new PublicKey(
-  "DaERMQKb2z7FyekFBnSYgLG9YF98AyDNVQS6VCFw8mfE"
+const OUTPUT_TOKEN_MINT_KEYPAIR = loadKeypairFromFile(
+  "./keys/output_token_mint.json"
 );
 
 async function main() {
@@ -73,50 +63,44 @@ async function main() {
   );
 
   const [pool, bump] = PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("lrt_pool"),
-      LST_MINT_PUB_KEY_DEVNET.toBuffer(),
-      RST_MINT_KEYPAIR.publicKey.toBuffer(),
-      SOLAYER_SOL_MINT_PUB_KEY_DEVNET.toBuffer(),
-    ],
+    [Buffer.from("lrt_pool"), OUTPUT_TOKEN_MINT_KEYPAIR.publicKey.toBuffer()],
     program.programId
   );
 
-  const lstVault = getAssociatedTokenAddressSync(
-    LST_MINT_PUB_KEY_DEVNET,
-    pool,
-    true
-  );
-
-  const ssolVault = getAssociatedTokenAddressSync(
+  const poolInputTokenVault = getAssociatedTokenAddressSync(
     SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
     pool,
     true
   );
 
-  console.log("lst_mint: ", LST_MINT_PUB_KEY_DEVNET.toBase58());
-  console.log("lst_vault(init_if_needed): ", lstVault.toBase58());
-  console.log("pool(init), bump: ", pool.toBase58(), bump);
-  console.log("rst_mint: ", RST_MINT_KEYPAIR.publicKey.toBase58());
+  console.log("signer: ", KEYPAIR.publicKey.toBase58());
   console.log("delegate_authority: ", DELEGATE_AUTHORITY.publicKey.toBase58());
-  console.log("solayer_sol_mint: ", SOLAYER_SOL_MINT_PUB_KEY_DEVNET.toBase58());
-  console.log("solayer_sol_vault(init_if_needed): ", ssolVault.toBase58());
+  console.log("input_token_mint: ", SOLAYER_SOL_MINT_PUB_KEY_DEVNET.toBase58());
+  console.log(
+    "poolInputTokenVault(init_if_needed): ",
+    poolInputTokenVault.toBase58()
+  );
+  console.log(
+    "output_token_mint: ",
+    OUTPUT_TOKEN_MINT_KEYPAIR.publicKey.toBase58()
+  );
+  console.log("pool(init), bump: ", pool.toBase58(), bump);
 
   let tx = newTransactionWithComputeUnitPriceAndLimit();
 
-  const rstMintInst = await createMintInstructions(
+  const outputTokenMintInst = await createMintInstructions(
     connection,
     KEYPAIR,
     KEYPAIR.publicKey,
     KEYPAIR.publicKey,
     9,
-    RST_MINT_KEYPAIR
+    OUTPUT_TOKEN_MINT_KEYPAIR
   );
 
-  tx.add(rstMintInst);
+  tx.add(outputTokenMintInst);
 
   const setAuthorityInstructions = mintSetAuthorityInstruction(
-    RST_MINT_KEYPAIR.publicKey,
+    OUTPUT_TOKEN_MINT_KEYPAIR.publicKey,
     KEYPAIR.publicKey,
     pool
   );
@@ -127,11 +111,9 @@ async function main() {
     .accounts({
       signer: KEYPAIR.publicKey,
       delegateAuthority: DELEGATE_AUTHORITY.publicKey,
-      lstMint: LST_MINT_PUB_KEY_DEVNET,
-      lstVault,
-      rstMint: RST_MINT_KEYPAIR.publicKey,
-      ssolMint: SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
-      ssolVault,
+      inputTokenMint: SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
+      poolInputTokenVault,
+      outputTokenMint: OUTPUT_TOKEN_MINT_KEYPAIR.publicKey,
       pool,
       associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       tokenProgram: TOKEN_PROGRAM_ID,
@@ -140,11 +122,15 @@ async function main() {
     .instruction();
   tx.add(initializeLRTPoolInst);
 
-  await sendAndConfirmTransaction(connection, tx, [
-    KEYPAIR,
-    DELEGATE_AUTHORITY,
-    RST_MINT_KEYPAIR,
-  ]).then(log);
+  try {
+    await sendAndConfirmTransaction(connection, tx, [
+      KEYPAIR,
+      DELEGATE_AUTHORITY,
+      OUTPUT_TOKEN_MINT_KEYPAIR,
+    ]).then(log);
+  } catch (error) {
+    console.error(error);
+  }
 }
 
 main().then(() => process.exit());

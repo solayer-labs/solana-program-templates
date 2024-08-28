@@ -20,8 +20,8 @@ import {
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync,
-  createAssociatedTokenAccountIdempotentInstruction,
 } from "@solana/spl-token";
+import { ENDO_AVS_DEVNET, ENDO_AVS_PROGRAM_ID_DEVNET, ENDO_AVS_TOKEN_MINT_DEVNET, LRT_TEMPLATE_PROGRAM_ID_DEVNET, SOLAYER_SOL_MINT_PUB_KEY_DEVNET } from "./constants";
 
 // signer keypair
 const KEYPAIR = Keypair.fromSecretKey(
@@ -39,33 +39,11 @@ const DELEGATE_AUTHORITY = loadKeypairFromFile(
 );
 
 // you can generate a new one for your use
-const RST_MINT_KEYPAIR = loadKeypairFromFile("./keys/rst_mint.json");
-
-const SOLAYER_SOL_MINT_PUB_KEY_DEVNET = new PublicKey(
-  "BQoheepVg6gprtszJFiL59pFVHPa2bu3GBZ6Un7sGGsf"
+const OUTPUT_TOKEN_MINT_KEYPAIR = loadKeypairFromFile(
+  "./keys/output_token_mint.json"
 );
 
-const LRT_TEMPLATE_PROGRAM_ID_DEVNET = new PublicKey(
-  "Be419vzFciNeDWrX61Wwo2pqHWeX1JQVRQrwgoK6Lur2"
-);
-
-const LST_MINT_PUB_KEY_DEVNET = new PublicKey(
-  "DaERMQKb2z7FyekFBnSYgLG9YF98AyDNVQS6VCFw8mfE"
-);
-
-const ENDO_AVS_PROGRAM_ID_DEVNET = new PublicKey(
-  "DM2ReCHeTsV4fAvHsBehZBTps3DVLiK2UW2dHAYrDZrM"
-);
-
-const ENDO_AVS_DEVNET = new PublicKey(
-  "GQouxK6v51z191VRdqAuudhVma7AWiqkGQ5yBWWPysqa"
-);
-
-const ENDO_AVS_TOKEN_MINT_DEVNET = new PublicKey(
-  "5RA2wjzePPnk8z9Zy3whTDk4jTbMXgXqWxvCoeh8Fgck"
-);
-
-const DELEGATE_AMOUNT = 10;
+const UNELEGATE_AMOUNT = 1;
 
 async function main() {
   const connection = new Connection(clusterApiUrl("devnet"));
@@ -83,22 +61,17 @@ async function main() {
   );
 
   const [pool, _] = PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("lrt_pool"),
-      LST_MINT_PUB_KEY_DEVNET.toBuffer(),
-      RST_MINT_KEYPAIR.publicKey.toBuffer(),
-      SOLAYER_SOL_MINT_PUB_KEY_DEVNET.toBuffer(),
-    ],
+    [Buffer.from("lrt_pool"), OUTPUT_TOKEN_MINT_KEYPAIR.publicKey.toBuffer()],
     program.programId
   );
 
-  const poolDelegatedTokenAccount = getAssociatedTokenAddressSync(
+  const poolInputTokenVault = getAssociatedTokenAddressSync(
     SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
     pool,
     true
   );
 
-  const poolAvsTokenAccount = getAssociatedTokenAddressSync(
+  const poolAvsTokenVault = getAssociatedTokenAddressSync(
     ENDO_AVS_TOKEN_MINT_DEVNET,
     pool,
     true
@@ -106,50 +79,38 @@ async function main() {
 
   let tx = newTransactionWithComputeUnitPriceAndLimit();
 
-  const createPoolDelegatedTokenAccountInst =
-    createAssociatedTokenAccountIdempotentInstruction(
-      DELEGATE_AUTHORITY.publicKey,
-      poolDelegatedTokenAccount,
-      pool,
-      SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
-      TOKEN_PROGRAM_ID,
-      ASSOCIATED_TOKEN_PROGRAM_ID
-    );
-
-  tx.add(createPoolDelegatedTokenAccountInst);
-
-  const poolSSolBalanceBefore = await connection.getTokenAccountBalance(
-    poolDelegatedTokenAccount
+  const poolInputTokenBalanceBefore = await connection.getTokenAccountBalance(
+    poolInputTokenVault
   );
   const poolAvsTokenBalanceBefore = await connection.getTokenAccountBalance(
-    poolAvsTokenAccount
+    poolAvsTokenVault
   );
 
-  const delegatedTokenVault = getAssociatedTokenAddressSync(
+  const avsInputTokenVault = getAssociatedTokenAddressSync(
     SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
     ENDO_AVS_DEVNET,
     true
   );
 
-  const delegateInst = await program.methods
-    .delegate(new anchor.BN(DELEGATE_AMOUNT * LAMPORTS_PER_SOL))
+  const undelegateInst = await program.methods
+    .undelegate(new anchor.BN(UNELEGATE_AMOUNT * LAMPORTS_PER_SOL))
     .accounts({
       signer: DELEGATE_AUTHORITY.publicKey,
-      endoAvs: ENDO_AVS_DEVNET,
+      avs: ENDO_AVS_DEVNET,
       avsTokenMint: ENDO_AVS_TOKEN_MINT_DEVNET,
-      delegatedTokenVault,
-      delegatedTokenMint: SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
-      poolDelegatedTokenAccount,
-      poolAvsTokenAccount,
+      avsInputTokenVault,
+      inputTokenMint: SOLAYER_SOL_MINT_PUB_KEY_DEVNET,
+      poolInputTokenVault,
+      poolAvsTokenVault,
       pool,
-      endoAvsProgram: ENDO_AVS_PROGRAM_ID_DEVNET,
+      avsProgram: ENDO_AVS_PROGRAM_ID_DEVNET,
       tokenProgram: TOKEN_PROGRAM_ID,
       associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       systemProgram: SystemProgram.programId,
     })
     .remainingAccounts([
       {
-        pubkey: poolDelegatedTokenAccount,
+        pubkey: poolInputTokenVault,
         isSigner: false,
         isWritable: true,
       },
@@ -170,12 +131,12 @@ async function main() {
       },
     ])
     .instruction();
-  tx.add(delegateInst);
+  tx.add(undelegateInst);
 
   try {
     await sendAndConfirmTransaction(connection, tx, [DELEGATE_AUTHORITY]).then(
       (signature: string) => {
-        console.log("Delegate Tx Success.");
+        console.log("Undelegate Tx Success.");
         log(signature);
       }
     );
@@ -183,26 +144,26 @@ async function main() {
     console.error(error);
   }
 
-  setTimeout(() => {}, 3000);
+  await new Promise((f) => setTimeout(f, 3000));
 
-  const poolSSolBalanceAfter = await connection.getTokenAccountBalance(
-    poolDelegatedTokenAccount
+  const poolInputTokenBalanceAfter = await connection.getTokenAccountBalance(
+    poolInputTokenVault
   );
   const poolAvsTokenBalanceAfter = await connection.getTokenAccountBalance(
-    poolAvsTokenAccount
+    poolAvsTokenVault
   );
 
   assert.equal(
-    poolSSolBalanceBefore.value.uiAmount - poolSSolBalanceAfter.value.uiAmount,
-    DELEGATE_AMOUNT,
-    "delegated token account balance should decrease by DELEGATE_AMOUNT"
+    poolInputTokenBalanceAfter.value.uiAmount - poolInputTokenBalanceBefore.value.uiAmount,
+    UNELEGATE_AMOUNT,
+    "delegated token account balance should increase by UNELEGATE_AMOUNT"
   );
 
   assert.equal(
-    poolAvsTokenBalanceAfter.value.uiAmount -
-      poolAvsTokenBalanceBefore.value.uiAmount,
-    DELEGATE_AMOUNT,
-    "avs token account balance should increase by DELEGATE_AMOUNT"
+    poolAvsTokenBalanceBefore.value.uiAmount -
+      poolAvsTokenBalanceAfter.value.uiAmount,
+    UNELEGATE_AMOUNT,
+    "avs token account balance should decrease by UNELEGATE_AMOUNT"
   );
 }
 

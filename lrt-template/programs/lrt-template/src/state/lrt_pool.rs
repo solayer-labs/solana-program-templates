@@ -5,8 +5,7 @@ use anchor_lang::InitSpace;
 #[derive(InitSpace)]
 pub struct LRTPool {
     pub bump: u8,
-    pub lst_mint: Pubkey,
-    pub rst_mint: Pubkey,
-    pub lrt_mint: Pubkey,
+    pub input_token_mint: Pubkey,
+    pub output_token_mint: Pubkey,
     pub delegate_authority: Pubkey,
 }
