@@ -12,10 +12,15 @@ Clone this repository and install the dependencies:
 
 ```
 git clone git@github.com:solayer-labs/solana-program-templates.git
-cd lrt-template
-cargo install
+cd solana-program-templates/lrt-template
 yarn install
+```
+
+You can start running tests after the above step. However if you need to make changes to the program, you will need to:
+
+```
 anchor build
+anchor deploy
 ```
 
 ## Scope
