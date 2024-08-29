@@ -187,6 +187,15 @@ impl<'info> WithdrawStake<'info> {
             &signer_seeds,
         );
 
-        transfer_checked(ctx, amount, self.input_token_mint.decimals)
+        transfer_checked(
+            ctx,
+            self.calculate_input_token_amount(amount),
+            self.input_token_mint.decimals,
+        )
+    }
+
+    // fill this function according to your business logic
+    pub fn calculate_input_token_amount(&self, amount: u64) -> u64 {
+        amount
     }
 }

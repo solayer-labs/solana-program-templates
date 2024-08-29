@@ -71,7 +71,7 @@ impl<'info> Deposit<'info> {
         transfer_checked(ctx, amount, self.input_token_mint.decimals)
     }
 
-    pub fn mint_rst(&mut self, amount: u64) -> Result<()> {
+    pub fn mint_output_token(&mut self, amount: u64) -> Result<()> {
         let bump = [self.pool.bump];
 
         let signer_seeds: [&[&[u8]]; 1] = [&[
@@ -91,5 +91,10 @@ impl<'info> Deposit<'info> {
         );
 
         mint_to(ctx, amount)
+    }
+
+    // fill this function according to your business logic
+    pub fn calculate_output_token_amount(&self, amount: u64) -> u64 {
+        amount
     }
 }

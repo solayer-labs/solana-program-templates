@@ -101,4 +101,9 @@ impl<'info> Withdraw<'info> {
 
         transfer_checked(ctx, amount, self.input_token_mint.decimals)
     }
+
+    // fill this function according to your business logic
+    pub fn calculate_input_token_amount(&self, amount: u64) -> u64 {
+        amount
+    }
 }
