@@ -53,6 +53,19 @@ We have tests over all flow. Before you run any test command, you should initial
 yarn init-pool
 ```
 
+Note that you could encounter the following error when you run yarn init-pool command:
+
+```
+Create Account: account Address { address: QZbCJigCCL1dDoKdC3sbNi92c7GznCnChuVL8az7uCH, base: None } already in use
+```
+
+It means that the output token has been created and the pool has been initialized. You should create a new output token keypair under keys folder and delete the old one. Use the following command:
+```
+cd lrt-template
+solana-keygen new -o ./keys/output_token_mint.json --force
+yarn init-pool
+```
+
 Then you can run any tests through the following command one by one:
 ```
 yarn deposit
